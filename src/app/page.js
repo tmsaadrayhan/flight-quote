@@ -344,7 +344,7 @@ export default function FlightParserApp() {
           onChange={(e) => setMeta({ ...meta, currency: e.target.value })}
         >
           {currencyOptions.map((c) => (
-            <option key={c.code} value={c.code}>
+            <option className="text-[#000000]" key={c.code} value={c.code}>
               {c.code}
             </option>
           ))}
@@ -385,7 +385,7 @@ export default function FlightParserApp() {
 
       {/* Output */}
       {rows.length > 0 && (
-        <div className="p-[2rem] bg-[#ffffff] text-[#000000]">
+        <div className="bg-image p-[2rem] bg-[#ffffff] text-[#000000]">
           <div className="text-center font-semibold">
             <div className="bg-[#ffff00] inline-block px-3">
               {console.log(meta)}
