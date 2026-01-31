@@ -109,6 +109,51 @@ export default function FlightParserApp() {
     return h * 60 + m;
   };
 
+  const formatDateWithOffset = (dateStr, offset = 0) => {
+    const base = parseFlightDate(dateStr);
+    base.setDate(base.getDate() + offset);
+
+    const day = String(base.getDate()).padStart(2, "0");
+    const month = base
+      .toLocaleString("en-US", { month: "short" })
+      .toUpperCase();
+
+    return `${day} ${month}`;
+  };
+
+  const parseFlightDate = (d = "") => {
+    // "07OCT" → Date object (year is irrelevant, we just need day diff)
+    const day = Number(d.slice(0, 2));
+    const monthStr = d.slice(2).toUpperCase();
+
+    const months = {
+      JAN: 0,
+      FEB: 1,
+      MAR: 2,
+      APR: 3,
+      MAY: 4,
+      JUN: 5,
+      JUL: 6,
+      AUG: 7,
+      SEP: 8,
+      OCT: 9,
+      NOV: 10,
+      DEC: 11,
+    };
+
+    return new Date(2025, months[monthStr], day);
+  };
+
+  const parseTimeWithDayOffset = (t = "") => {
+    const isNextDay = t.includes("#");
+    const clean = t.replace("#", "");
+
+    return {
+      time: clean, // "2240"
+      dayOffset: isNextDay ? 1 : 0,
+    };
+  };
+
   const formatTransit = (mins) => {
     const h = Math.floor(mins / 60);
     const m = mins % 60;
@@ -158,7 +203,8 @@ export default function FlightParserApp() {
         const date = parts[5]; // 07OCT
         const route = parts[6]; // LHRDOH
         const dep = parts[8]; // 1340
-        const arr = parts[9]; // 2240
+        const arrRaw = parts[9]; // 2240 or 2240#
+        const { time: arr, dayOffset } = parseTimeWithDayOffset(arrRaw);
 
         const airlineName = airlineDataset[airlineCode] || airlineCode;
         airlinesFound.add(airlineName);
@@ -170,6 +216,7 @@ export default function FlightParserApp() {
           date,
           dep,
           arr,
+          arrDayOffset: dayOffset,
           operatedBy: null,
         });
 
@@ -181,16 +228,36 @@ export default function FlightParserApp() {
       let transit = "–";
 
       if (flights[i + 1] && flights[i + 1].fromCode === f.toCode) {
-        let diff = toMinutes(flights[i + 1].dep) - toMinutes(f.arr);
-        if (diff < 0) diff += 24 * 60;
-        transit = formatTransit(diff);
+        const currArrivalMinutes =
+          toMinutes(f.arr) + (f.arrDayOffset || 0) * 24 * 60;
+
+        const nextDepartureMinutes = toMinutes(flights[i + 1].dep);
+
+        // DATE CHECK (same day or +1 day only)
+        const arrivalDate = parseFlightDate(f.date);
+        arrivalDate.setDate(arrivalDate.getDate() + (f.arrDayOffset || 0));
+
+        const nextDate = parseFlightDate(flights[i + 1].date);
+
+        const dayDiff = (nextDate - arrivalDate) / (1000 * 60 * 60 * 24);
+
+        // only allow same day (0) or next day (1)
+        if (dayDiff === 0 || dayDiff === 1) {
+          let diff = nextDepartureMinutes - currArrivalMinutes;
+
+          if (diff < 0) diff += 24 * 60;
+
+          transit = formatTransit(diff);
+        } else {
+          transit = "–";
+        }
       }
 
       return {
         from: airportDataset[f.fromCode] || f.fromCode,
         to: airportDataset[f.toCode] || f.toCode,
         depart: `${f.date.slice(0, 2)} ${f.date.slice(2)} ${formatTime(f.dep)}`,
-        arrive: `${f.date.slice(0, 2)} ${f.date.slice(2)} ${formatTime(f.arr)}`,
+        arrive: `${formatDateWithOffset(f.date, f.arrDayOffset)} ${formatTime(f.arr)}`,
         transit,
         operatedBy: f.operatedBy,
       };
@@ -296,7 +363,7 @@ export default function FlightParserApp() {
 
       {/* Output */}
       {rows.length > 0 && (
-        <div className="">
+        <div className="p-[2rem] bg-[#ffffff] text-[#000000]">
           <div className="text-center font-semibold">
             <div className="bg-[#ffff00] inline-block px-3">
               {console.log(meta)}
