@@ -367,7 +367,7 @@ export default function FlightParserApp() {
           <div className="text-center font-semibold">
             <div className="bg-[#ffff00] inline-block px-3">
               {console.log(meta)}
-              {meta.airline} – Total Price: <strong>{totalPrice}</strong>
+              {meta.airline} – Total Price: £<strong>{totalPrice}</strong>
             </div>
             <div className="mb-[1rem]">
               {fareItems.map((f) => {
@@ -380,7 +380,7 @@ export default function FlightParserApp() {
                 return (
                   <div key={f.label} className="flex justify-center">
                     <span className="bg-[#ffff00]">
-                      {f.label} {price} × {count} ={" "}
+                      {f.label} {price} × {count} ={" £"}
                       <strong>{price * count}</strong>
                     </span>
                   </div>
