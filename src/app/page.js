@@ -60,6 +60,14 @@ export default function FlightParserApp() {
     MAN: "Manchester(MAN)",
     DUB: "Dublin(DUB)",
   };
+  const currencyOptions = [
+    { code: "BDT", symbol: "৳" },
+    { code: "USD", symbol: "$" },
+    { code: "GBP", symbol: "£" },
+    { code: "EUR", symbol: "€" },
+    { code: "AED", symbol: "د.إ" },
+    { code: "SAR", symbol: "﷼" },
+  ];
 
   const [meta, setMeta] = useState({
     airline: "",
@@ -71,6 +79,7 @@ export default function FlightParserApp() {
     childCount: "",
     infantPrice: "",
     infantCount: "",
+    currency: "GBP",
     baggage:
       "Check in luggage 1 pieces 23KG each and Hand Luggage 7KG per person",
     cancellation: "Ticket Non-Refundable",
@@ -271,6 +280,8 @@ export default function FlightParserApp() {
       airline: Array.from(airlinesFound).join(" / "),
     }));
   };
+  const currencySymbol =
+    currencyOptions.find((c) => c.code === meta.currency)?.symbol || "";
 
   const totalPrice =
     (Number(meta.adultPrice) || 0) * (Number(meta.adultCount) || 0) +
@@ -327,6 +338,17 @@ export default function FlightParserApp() {
           placeholder="Infants"
           onChange={(e) => setMeta({ ...meta, infantCount: e.target.value })}
         />
+        <select
+          className="border p-2"
+          value={meta.currency}
+          onChange={(e) => setMeta({ ...meta, currency: e.target.value })}
+        >
+          {currencyOptions.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.code}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Notes */}
@@ -367,7 +389,11 @@ export default function FlightParserApp() {
           <div className="text-center font-semibold">
             <div className="bg-[#ffff00] inline-block px-3">
               {console.log(meta)}
-              {meta.airline} – Total Price: £<strong>{totalPrice}</strong>
+              {meta.airline} – Total Price:{" "}
+              <strong>
+                {currencySymbol}
+                {totalPrice}
+              </strong>
             </div>
             <div className="mb-[1rem]">
               {fareItems.map((f) => {
@@ -380,8 +406,12 @@ export default function FlightParserApp() {
                 return (
                   <div key={f.label} className="flex justify-center">
                     <span className="bg-[#ffff00]">
-                      {f.label} {price} × {count} ={" £"}
-                      <strong>{price * count}</strong>
+                      {f.label} {currencySymbol}
+                      {price} × {count} ={" "}
+                      <strong>
+                        {currencySymbol}
+                        {price * count}
+                      </strong>
                     </span>
                   </div>
                 );
