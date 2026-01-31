@@ -1,4 +1,6 @@
 "use client";
+import Image from "next/image";
+import saudia_image from "../../public/8a3835bf-b002-4ba7-91ef-682c53935961.png";
 
 import { useState } from "react";
 
@@ -386,6 +388,14 @@ export default function FlightParserApp() {
       {/* Output */}
       {rows.length > 0 && (
         <div className="bg-image p-[2rem] bg-[#ffffff] text-[#000000]">
+          <div className="absolute top-[1rem] right-[2rem]">
+            <Image
+              src={saudia_image}
+              alt="Saudi Tourism Authority Logo"
+              width={100}
+              priority
+            />
+          </div>
           <div className="text-center font-semibold">
             <div className="bg-[#ffff00] inline-block px-3">
               {console.log(meta)}
