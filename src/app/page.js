@@ -356,7 +356,7 @@ export default function FlightParserApp() {
 
       <button
         onClick={parseText}
-        className="bg-black text-white px-4 py-2 rounded"
+        className="bg-[#8488ea] text-[#ffffff] px-4 py-2 rounded"
       >
         Generate Table
       </button>
