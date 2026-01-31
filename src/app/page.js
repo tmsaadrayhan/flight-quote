@@ -423,7 +423,7 @@ export default function FlightParserApp() {
             </tbody>
           </table>
 
-          <div className="text-sm">
+          <div className="text-md font-bold">
             <p>
               <strong>Notes:</strong> {meta.baggage}
             </p>
