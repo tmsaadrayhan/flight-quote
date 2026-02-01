@@ -170,9 +170,7 @@ export default function FlightParserApp() {
         return airlineDataset[code]; // canonical name
       }
     }
-    return name
-      .toLowerCase()
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+    return name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
   // --- NEW helpers for robust time parsing ---
@@ -246,6 +244,43 @@ export default function FlightParserApp() {
       offset: 0,
     };
   };
+  const parseReadableLine = (line) => {
+    const regex =
+      /(.*?)\s*[–-]\s*(.*?)\s+(\d{2})\s*([A-Za-z]{3})\s+(\d{2}:\d{2})\s*-\s*(\d{2})\s*([A-Za-z]{3})\s+(\d{2}:\d{2})/;
+
+    const m = line.match(regex);
+    if (!m) return null;
+
+    const [
+      ,
+      fromCity,
+      toCity,
+      depDay,
+      depMonth,
+      depTime,
+      arrDay,
+      arrMonth,
+      arrTime,
+    ] = m;
+
+    const normalizeMonth = (m) => m.toUpperCase().slice(0, 3);
+    const toHHMM = (t) => t.replace(":", "");
+
+    const depDate = `${depDay}${normalizeMonth(depMonth)}`;
+    const arrDate = `${arrDay}${normalizeMonth(arrMonth)}`;
+
+    return {
+      airline: "WIZZ AIR - WI", // ✅ FORCE WIZZ
+      fromCode: fromCity.trim(),
+      toCode: toCity.trim(),
+      date: depDate,
+      dep: toHHMM(depTime),
+      arr: toHHMM(arrTime),
+      arrivalDate: arrDate,
+      arrDayOffset: depDate !== arrDate ? 1 : 0,
+      operatedBy: null,
+    };
+  };
 
   // --- main parser ---
   const parseText = () => {
@@ -260,9 +295,20 @@ export default function FlightParserApp() {
       const line = raw.trim();
       if (line.startsWith("/")) return;
       if (!line) return;
+      if (/[–-]/.test(line) && /:\d{2}/.test(line)) {
+        const readable = parseReadableLine(line);
+        if (readable) {
+          flights.push(readable);
+          airlinesFound.add("WIZZ AIR"); // ✅ ENSURE HEADER SHOWS IT
+          return;
+        }
+      }
 
       // OPERATED BY line
-      if (line.toUpperCase().startsWith("OPERATED BY") && lastFlightIndex !== -1) {
+      if (
+        line.toUpperCase().startsWith("OPERATED BY") &&
+        lastFlightIndex !== -1
+      ) {
         const rawOp = line.replace(/OPERATED BY/i, "").trim();
         const normalizedOp = normalizeAirline(rawOp);
 
@@ -309,9 +355,22 @@ export default function FlightParserApp() {
         } else {
           // fallback: find 3-letter tokens but skip month tokens
           const months = [
-            "JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"
+            "JAN",
+            "FEB",
+            "MAR",
+            "APR",
+            "MAY",
+            "JUN",
+            "JUL",
+            "AUG",
+            "SEP",
+            "OCT",
+            "NOV",
+            "DEC",
           ];
-          const pot = (afterDate.match(/\b[A-Z]{3}\b/g) || []).filter(x => !months.includes(x));
+          const pot = (afterDate.match(/\b[A-Z]{3}\b/g) || []).filter(
+            (x) => !months.includes(x),
+          );
           if (pot.length >= 2) {
             fromCode = pot[0];
             toCode = pot[1];
@@ -378,8 +437,8 @@ export default function FlightParserApp() {
       }
 
       return {
-        from: airportDataset[f.fromCode] || f.fromCode,
-        to: airportDataset[f.toCode] || f.toCode,
+        from: airportDataset[f.fromCode] ?? f.fromCode,
+        to: airportDataset[f.toCode] ?? f.toCode,
         depart: `${f.date.slice(0, 2)} ${f.date.slice(2)} ${formatTime(f.dep)}`,
         arrive: `${formatDateWithOffset(
           f.arrivalDate || f.date,
