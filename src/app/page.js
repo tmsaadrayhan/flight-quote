@@ -182,6 +182,46 @@ export default function FlightParserApp() {
     return name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
+  const parseTimeUniversal = (t = "") => {
+    const hasHash = t.includes("#");
+    const clean = t.replace("#", "");
+    // AM / PM
+    if (/[AP]$/.test(clean)) {
+      const isPM = clean.endsWith("P");
+      let time = clean.replace(/[AP]/, "");
+      let h = Number(time.slice(0, 2));
+      const m = time.slice(2);
+
+      if (isPM && h !== 12) h += 12;
+      if (!isPM && h === 12) h = 0;
+
+      return {
+        time: `${String(h).padStart(2, "0")}${m}`,
+        dayOffset: hasHash ? 1 : 0,
+      };
+    }
+
+    // 24h format
+    return {
+      time: clean,
+      dayOffset: hasHash ? 1 : 0,
+    };
+  };
+
+  const convertAmPmTo24 = (t = "") => {
+    const isPM = t.endsWith("P");
+    const isAM = t.endsWith("A");
+
+    let time = t.replace(/[AP]/, "");
+    let h = Number(time.slice(0, 2));
+    const m = time.slice(2);
+
+    if (isPM && h !== 12) h += 12;
+    if (isAM && h === 12) h = 0;
+
+    return `${String(h).padStart(2, "0")}${m}`;
+  };
+
   const parseText = () => {
     const lines = rawText.split("\n");
 
@@ -206,28 +246,52 @@ export default function FlightParserApp() {
       }
 
       // Flight line (starts with number)
-      if (/^\d+\s*\./.test(line)) {
-        const clean = line.replace(/\s+/g, " ");
-        const parts = clean.split(" ");
+      if (/^\d+/.test(line)) {
+        const dateMatch = line.match(/\d{2}[A-Z]{3}/);
+        if (!dateMatch) return;
 
-        const airlineCode = parts[2]; // QR / BA
-        const date = parts[5]; // 07OCT
-        const route = parts[6]; // LHRDOH
-        const dep = parts[8]; // 1340
-        const arrRaw = parts[9]; // 2240 or 2240#
-        const { time: arr, dayOffset } = parseTimeWithDayOffset(arrRaw);
+        const date = dateMatch[0];
 
+        // Find airports (LHR DOH) or (LHRDOH)
+        let fromCode = null;
+        let toCode = null;
+
+        const airportMatches = line.match(/\b[A-Z]{3}\b/g);
+        if (airportMatches && airportMatches.length >= 2) {
+          fromCode = airportMatches[0];
+          toCode = airportMatches[1];
+        } else {
+          const joined = line.match(/[A-Z]{6}/);
+          if (joined) {
+            fromCode = joined[0].slice(0, 3);
+            toCode = joined[0].slice(3);
+          }
+        }
+
+        if (!fromCode || !toCode) return;
+
+        // Find times
+        const timeMatches = line.match(/#?\d{4}[AP]?/g);
+        if (!timeMatches || timeMatches.length < 2) return;
+
+        const depParsed = parseTimeUniversal(timeMatches[0]);
+        const arrParsed = parseTimeUniversal(timeMatches[1]);
+
+        // Airline code
+        const airlineCodeMatch = line.match(/\b[A-Z]{2}\b/);
+        const airlineCode = airlineCodeMatch?.[0] || "";
         const airlineName = airlineDataset[airlineCode] || airlineCode;
+
         airlinesFound.add(airlineName);
 
         flights.push({
           airline: airlineName,
-          fromCode: route.slice(0, 3),
-          toCode: route.slice(3, 6),
+          fromCode,
+          toCode,
           date,
-          dep,
-          arr,
-          arrDayOffset: dayOffset,
+          dep: depParsed.time,
+          arr: arrParsed.time,
+          arrDayOffset: arrParsed.dayOffset,
           operatedBy: null,
         });
 
@@ -282,6 +346,7 @@ export default function FlightParserApp() {
       airline: Array.from(airlinesFound).join(" / "),
     }));
   };
+
   const currencySymbol =
     currencyOptions.find((c) => c.code === meta.currency)?.symbol || "";
 
