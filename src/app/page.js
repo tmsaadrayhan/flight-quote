@@ -29,39 +29,30 @@ export default function FlightParserApp() {
 
   const airportDataset = {
     BHX: "Birmingham",
-    IST: "Istanbul",
-    MED: "Medina",
-    JED: "Jeddah",
-    LHR: "London Heathrow",
-    DXB: "Dubai",
-    DOH: "Doha",
-    AUH: "Abu Dhabi",
     IST: "Istanbul Airport(IST)",
-    SAW: "Istanbul Airport(SAW)",
+    MED: "Madinah(MED)",
+    JED: "Jeddah(JED)",
+    LHR: "London Heathrow(LHR)",
     DXB: "Dubai(DXB)",
+    DOH: "Hamad International Airport(DOH)",
+    AUH: "Abu Dhabi(AUH)",
+    SAW: "Istanbul Airport(SAW)",
     CAI: "Cairo(CAI)",
     AMM: "Queen Alia(AMM)",
     BAH: "Bahrain(BAH)",
-    DOH: "Hamad International Airport(DOH)",
-    AUH: "Abu Dhabi(AUH)",
-    JED: "Jeddah(JED)",
     RUH: "Riyadh(RUH)",
-    MED: "Madinah(MED)",
     ESB: "Turkey(ESB)",
-    SAW: "Istanbul(SAW)",
-    LHR: "London Heathrow(LHR)",
     DAC: "Dhaka(DAC)",
     DEL: "New Delhi(DEL)",
     BOM: "Mumbai(BOM)",
-    DXB: "Dubai(DXB)",
     ADD: "Addis Ababa(ADD)",
     MCT: "Muscat(MCT)",
-    LHR: "London Heathrow(LHR)",
     LGW: "London Gatwick(LGW)",
     STN: "London Stansted(STN)",
     MAN: "Manchester(MAN)",
     DUB: "Dublin(DUB)",
   };
+
   const currencyOptions = [
     { code: "BDT", symbol: "৳" },
     { code: "USD", symbol: "$" },
@@ -179,12 +170,31 @@ export default function FlightParserApp() {
         return airlineDataset[code]; // canonical name
       }
     }
-    return name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+    return name
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
+  // --- NEW helpers for robust time parsing ---
+  const normalizeTimeStr = (raw = "") => {
+    // Keep leading '#' if present
+    const hasHash = raw.includes("#");
+    const cleaned = raw.replace("#", "").trim();
+    // capture AM/PM marker if any
+    const ampmMatch = cleaned.match(/([AP])$/);
+    const ampm = ampmMatch ? ampmMatch[1] : "";
+    // digits only
+    const digits = cleaned.replace(/[AP]$/, "");
+    // pad to 4 digits (e.g. 600 -> 0600)
+    const padded = digits.padStart(4, "0");
+    return `${hasHash ? "#" : ""}${padded}${ampm}`;
   };
 
   const parseTimeUniversal = (t = "") => {
-    const hasHash = t.includes("#");
-    const clean = t.replace("#", "");
+    if (!t) return { time: "", dayOffset: 0 };
+    const normalized = normalizeTimeStr(t);
+    const hasHash = normalized.includes("#");
+    const clean = normalized.replace("#", "");
     // AM / PM
     if (/[AP]$/.test(clean)) {
       const isPM = clean.endsWith("P");
@@ -201,7 +211,7 @@ export default function FlightParserApp() {
       };
     }
 
-    // 24h format
+    // 24h format (already 4-digit)
     return {
       time: clean,
       dayOffset: hasHash ? 1 : 0,
@@ -222,6 +232,22 @@ export default function FlightParserApp() {
     return `${String(h).padStart(2, "0")}${m}`;
   };
 
+  const parseArrivalDateOverride = (line, depDate) => {
+    const dateMatches = line.match(/\d{2}[A-Z]{3}/g);
+
+    // If only one date → arrival same day
+    if (!dateMatches || dateMatches.length === 1) {
+      return { date: depDate, offset: 0 };
+    }
+
+    // Second date is arrival date
+    return {
+      date: dateMatches[1],
+      offset: 0,
+    };
+  };
+
+  // --- main parser ---
   const parseText = () => {
     const lines = rawText.split("\n");
 
@@ -232,11 +258,12 @@ export default function FlightParserApp() {
 
     lines.forEach((raw) => {
       const line = raw.trim();
+      if (line.startsWith("/")) return;
       if (!line) return;
 
       // OPERATED BY line
-      if (line.startsWith("OPERATED BY") && lastFlightIndex !== -1) {
-        const rawOp = line.replace("OPERATED BY", "").trim();
+      if (line.toUpperCase().startsWith("OPERATED BY") && lastFlightIndex !== -1) {
+        const rawOp = line.replace(/OPERATED BY/i, "").trim();
         const normalizedOp = normalizeAirline(rawOp);
 
         flights[lastFlightIndex].operatedBy = normalizedOp;
@@ -245,53 +272,75 @@ export default function FlightParserApp() {
         return;
       }
 
-      // Flight line (starts with number)
+      // Flight line (starts with number or "1 ." etc)
       if (/^\d+/.test(line)) {
+        // find date
         const dateMatch = line.match(/\d{2}[A-Z]{3}/);
         if (!dateMatch) return;
+        const depDate = dateMatch[0];
 
-        const date = dateMatch[0];
+        // --- find airline code near start ---
+        // remove leading sequence number and dots then split
+        const afterSeq = line.replace(/^\d+\.?\s*/, "");
+        const tokens = afterSeq.split(/\s+/);
+        let airlineCode = null;
+        for (let t of tokens) {
+          if (/^[A-Z]{2,3}$/.test(t)) {
+            // choose first pure 2-3 letter token (this will be RJ, QR, GF, etc)
+            airlineCode = t;
+            break;
+          }
+        }
+        const airlineName = airlineDataset[airlineCode] || airlineCode || "";
 
-        // Find airports (LHR DOH) or (LHRDOH)
+        if (airlineName) airlinesFound.add(airlineName);
+
+        // --- find airports ---
+        // take substring after the date to narrow search
+        const afterDate = line.slice(line.indexOf(depDate) + depDate.length);
+
+        // try joined 6-letter block first (e.g. LHRAMM)
         let fromCode = null;
         let toCode = null;
-
-        const airportMatches = line.match(/\b[A-Z]{3}\b/g);
-        if (airportMatches && airportMatches.length >= 2) {
-          fromCode = airportMatches[0];
-          toCode = airportMatches[1];
+        const joined = afterDate.match(/([A-Z]{3})([A-Z]{3})/);
+        if (joined) {
+          fromCode = joined[1];
+          toCode = joined[2];
         } else {
-          const joined = line.match(/[A-Z]{6}/);
-          if (joined) {
-            fromCode = joined[0].slice(0, 3);
-            toCode = joined[0].slice(3);
+          // fallback: find 3-letter tokens but skip month tokens
+          const months = [
+            "JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"
+          ];
+          const pot = (afterDate.match(/\b[A-Z]{3}\b/g) || []).filter(x => !months.includes(x));
+          if (pot.length >= 2) {
+            fromCode = pot[0];
+            toCode = pot[1];
           }
         }
 
         if (!fromCode || !toCode) return;
 
-        // Find times
-        const timeMatches = line.match(/#?\d{4}[AP]?/g);
-        if (!timeMatches || timeMatches.length < 2) return;
+        // --- find times (departure and arrival) ---
+        // allow times like 2150, 600A, #0720, 0215P etc
+        const timeMatchesRaw = afterDate.match(/#?\d{3,4}[AP]?/g);
+        if (!timeMatchesRaw || timeMatchesRaw.length < 2) return;
 
-        const depParsed = parseTimeUniversal(timeMatches[0]);
-        const arrParsed = parseTimeUniversal(timeMatches[1]);
+        // normalize and parse first two times found
+        const depParsed = parseTimeUniversal(timeMatchesRaw[0]);
+        const arrParsed = parseTimeUniversal(timeMatchesRaw[1]);
 
-        // Airline code
-        const airlineCodeMatch = line.match(/\b[A-Z]{2}\b/);
-        const airlineCode = airlineCodeMatch?.[0] || "";
-        const airlineName = airlineDataset[airlineCode] || airlineCode;
-
-        airlinesFound.add(airlineName);
+        const arrivalDateInfo = parseArrivalDateOverride(line, depDate);
 
         flights.push({
           airline: airlineName,
           fromCode,
           toCode,
-          date,
+          date: depDate,
           dep: depParsed.time,
           arr: arrParsed.time,
-          arrDayOffset: arrParsed.dayOffset,
+          arrDayOffset:
+            arrivalDateInfo.date !== depDate ? 1 : arrParsed.dayOffset,
+          arrivalDate: arrivalDateInfo.date,
           operatedBy: null,
         });
 
@@ -332,7 +381,11 @@ export default function FlightParserApp() {
         from: airportDataset[f.fromCode] || f.fromCode,
         to: airportDataset[f.toCode] || f.toCode,
         depart: `${f.date.slice(0, 2)} ${f.date.slice(2)} ${formatTime(f.dep)}`,
-        arrive: `${formatDateWithOffset(f.date, f.arrDayOffset)} ${formatTime(f.arr)}`,
+        arrive: `${formatDateWithOffset(
+          f.arrivalDate || f.date,
+          0,
+        )} ${formatTime(f.arr)}`,
+
         transit,
         operatedBy: f.operatedBy,
       };
@@ -463,7 +516,6 @@ export default function FlightParserApp() {
           </div>
           <div className="text-center font-semibold">
             <div className="bg-[#ffff00] inline-block px-3">
-              {console.log(meta)}
               {meta.airline} – Total Price:{" "}
               <strong>
                 {currencySymbol}
@@ -507,21 +559,10 @@ export default function FlightParserApp() {
             <tbody>
               {rows.map((r, i) => (
                 <tr key={i}>
-                  <td className="border p-2">
-                    {r.from}
-                    {r.operatedBy && (
-                      <div className="text-xs italic text-gray-600">
-                        (Operated by {r.operatedBy})
-                      </div>
-                    )}
-                  </td>
+                  <td className="border p-2">{r.from}</td>
                   <td className="border p-2">{r.to}</td>
-                  <td className="border p-2">
-                    {r.date} {r.depart}
-                  </td>
-                  <td className="border p-2">
-                    {r.date} {r.arrive}
-                  </td>
+                  <td className="border p-2">{r.depart}</td>
+                  <td className="border p-2">{r.arrive}</td>
                   <td className="border p-2">{r.transit}</td>
                 </tr>
               ))}
