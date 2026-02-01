@@ -105,6 +105,12 @@ export default function FlightParserApp() {
 
   const formatTime = (t = "") =>
     t.length === 4 ? `${t.substring(0, 2)}:${t.substring(2)}` : t;
+
+  const formatNumber = (num) => {
+    if (num === null || num === undefined || isNaN(num)) return num;
+    return Number(num).toLocaleString("en-US");
+  };
+
   const toMinutes = (time) => {
     const h = Number(time.slice(0, 2));
     const m = Number(time.slice(2));
@@ -565,7 +571,7 @@ export default function FlightParserApp() {
       {/* Output */}
       {rows.length > 0 && (
         <div className="bg-image p-[2rem] bg-[#ffffff] text-[#000000]">
-          <div className="absolute top-[1rem] right-[2rem]">
+          <div className="absolute bottom-[2rem] right-[2rem]">
             <Image
               src={saudia_image}
               alt="Saudi Tourism Authority Logo"
@@ -578,7 +584,7 @@ export default function FlightParserApp() {
               {meta.airline} – Total Price:{" "}
               <strong>
                 {currencySymbol}
-                {totalPrice}
+                {formatNumber(totalPrice)}
               </strong>
             </div>
             <div className="mb-[1rem]">
@@ -593,10 +599,10 @@ export default function FlightParserApp() {
                   <div key={f.label} className="flex justify-center">
                     <span className="bg-[#ffff00]">
                       {f.label} {currencySymbol}
-                      {price} × {count} ={" "}
+                      {formatNumber(price)} × {count} ={" "}
                       <strong>
                         {currencySymbol}
-                        {price * count}
+                        {formatNumber(price * count)}
                       </strong>
                     </span>
                   </div>
@@ -628,7 +634,7 @@ export default function FlightParserApp() {
             </tbody>
           </table>
 
-          <div className="text-md font-bold">
+          <div className="pt-[1rem] text-md font-bold">
             <p>
               <strong>Notes:</strong> {meta.baggage}
             </p>
