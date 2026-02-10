@@ -28,29 +28,95 @@ export default function FlightParserApp() {
   };
 
   const airportDataset = {
+    COK: "Cochin International Airport",
+    LHR: "London Heathrow",
+    LGW: "London Gatwick",
+    STN: "London Stansted",
     BHX: "Birmingham",
-    IST: "Istanbul Airport(IST)",
-    MED: "Madinah(MED)",
-    JED: "Jeddah(JED)",
-    LHR: "London Heathrow(LHR)",
-    DXB: "Dubai(DXB)",
-    DOH: "Hamad International Airport(DOH)",
-    AUH: "Abu Dhabi(AUH)",
-    SAW: "Istanbul Airport(SAW)",
-    CAI: "Cairo(CAI)",
-    AMM: "Queen Alia(AMM)",
-    BAH: "Bahrain(BAH)",
-    RUH: "Riyadh(RUH)",
-    ESB: "Turkey(ESB)",
-    DAC: "Dhaka(DAC)",
-    DEL: "New Delhi(DEL)",
-    BOM: "Mumbai(BOM)",
-    ADD: "Addis Ababa(ADD)",
-    MCT: "Muscat(MCT)",
-    LGW: "London Gatwick(LGW)",
-    STN: "London Stansted(STN)",
-    MAN: "Manchester(MAN)",
-    DUB: "Dublin(DUB)",
+    MAN: "Manchester",
+    JED: "Jeddah",
+    MED: "Medina (Madinah)",
+    RUH: "Riyadh",
+    DOH: "Doha",
+    DXB: "Dubai",
+    AMM: "Amman",
+    IST: "Istanbul Airport",
+    SAW: "Istanbul Sabiha Gökçen",
+    ESB: "Ankara",
+    DAC: "Dhaka",
+    ATL: "Atlanta",
+    DCA: "Washington National (Reagan)",
+    DEL: "New Delhi (Indira Gandhi)",
+    BOM: "Mumbai (Chhatrapati Shivaji Maharaj)",
+    BLR: "Bengaluru (Kempegowda)",
+    MAA: "Chennai",
+    HYD: "Hyderabad (Rajiv Gandhi)",
+    CCU: "Kolkata (Netaji Subhas Chandra Bose)",
+    COK: "Kochi",
+    TRV: "Thiruvananthapuram",
+    TRZ: "Tiruchirappalli",
+    AMD: "Ahmedabad",
+    PNQ: "Pune",
+    GOI: "Goa (Dabolim)",
+    GOX: "Goa (Mopa – newer airport)",
+    CJB: "Coimbatore",
+    IXM: "Madurai",
+    VNS: "Varanasi",
+    LKO: "Lucknow",
+    HYD: "Hyderabad",
+    CCU: "Kolkata",
+    BOM: "Mumbai",
+    DEL: "Delhi",
+    AMD: "Ahmedabad",
+    COK: "Kochi",
+    KHI: "Karachi (Jinnah International)",
+    LHE: "Lahore (Allama Iqbal International)",
+    ISB: "Islamabad (Islamabad International)",
+    PEW: "Peshawar (Bacha Khan International)",
+    SKT: "Sialkot International",
+    UET: "Quetta International",
+    MUX: "Multan",
+    BWP: "Bahawalpur",
+    RYK: "Rahim Yar Khan",
+    SKZ: "Sukkur",
+    GWD: "Gwadar",
+    TUK: "Turbat",
+    DBA: "Dalbandin",
+    KHI: "Karachi",
+    LHE: "Lahore",
+    ISB: "Islamabad",
+    PEW: "Peshawar",
+    MUX: "Multan",
+    SKT: "Sialkot",
+    DAC: "Dhaka (Hazrat Shahjalal International)",
+    CGP: "Chattogram (Shah Amanat International)",
+    ZYL: "Sylhet (Osmani International)",
+    CXB: "Cox’s Bazar",
+    RJH: "Rajshahi",
+    JSR: "Jashore",
+    BZL: "Barishal",
+    SPD: "Saidpur",
+    BOG: "Bogura",
+    DAC: "Dhaka",
+    CGP: "Chattogram",
+    ZYL: "Sylhet",
+    DXB: "Dubai International",
+    AUH: "Abu Dhabi International",
+    SHJ: "Sharjah International",
+    AAN: "Al Ain International",
+    RKT: "Ras Al Khaimah International",
+    FJR: "Fujairah International",
+    JED: "King Abdulaziz International, Jeddah",
+    MED: "Prince Mohammad bin Abdulaziz International, Medina",
+    RUH: "King Khalid International, Riyadh",
+    DMM: "King Fahd International, Dammam",
+    AHB: "Abha Regional",
+    TIF: "Taif Regional",
+    TUU: "Tabuk",
+    HAS: "Hail Regional",
+    EAM: "Najran",
+    ELQ: "Al Qassim (Buraidah)",
+    AJF: "Al Jouf",
   };
 
   const currencyOptions = [
@@ -417,12 +483,10 @@ export default function FlightParserApp() {
       let transit = "–";
 
       if (flights[i + 1] && flights[i + 1].fromCode === f.toCode) {
-        const currArrivalMinutes =
-          toMinutes(f.arr) + (f.arrDayOffset || 0) * 24 * 60;
+        const arrivalMinutes = toMinutes(f.arr) + (f.arrDayOffset || 0) * 1440;
 
         const nextDepartureMinutes = toMinutes(flights[i + 1].dep);
 
-        // DATE CHECK (same day or +1 day only)
         const arrivalDate = parseFlightDate(f.date);
         arrivalDate.setDate(arrivalDate.getDate() + (f.arrDayOffset || 0));
 
@@ -430,13 +494,16 @@ export default function FlightParserApp() {
 
         const dayDiff = (nextDate - arrivalDate) / (1000 * 60 * 60 * 24);
 
-        // only allow same day (0) or next day (1)
-        if (dayDiff === 0 || dayDiff === 1) {
-          let diff = nextDepartureMinutes - currArrivalMinutes;
+        // total gap in minutes
+        let diffMinutes =
+          dayDiff * 1440 + (nextDepartureMinutes - arrivalMinutes);
 
-          if (diff < 0) diff += 24 * 60;
+        // normalize negative gaps
+        if (diffMinutes < 0) diffMinutes += 1440;
 
-          transit = formatTransit(diff);
+        // ✅ SHOW ONLY IF LESS THAN 24 HOURS
+        if (diffMinutes > 0 && diffMinutes < 1440) {
+          transit = formatTransit(diffMinutes);
         } else {
           transit = "–";
         }
@@ -446,10 +513,11 @@ export default function FlightParserApp() {
         from: airportDataset[f.fromCode] ?? f.fromCode,
         to: airportDataset[f.toCode] ?? f.toCode,
         depart: `${f.date.slice(0, 2)} ${f.date.slice(2)} ${formatTime(f.dep)}`,
-        arrive: `${formatDateWithOffset(
-          f.arrivalDate || f.date,
-          0,
-        )} ${formatTime(f.arr)}`,
+        arrive: `${
+          f.arrivalDate
+            ? formatDateWithOffset(f.arrivalDate, 0)
+            : formatDateWithOffset(f.date, f.arrDayOffset || 0)
+        } ${formatTime(f.arr)}`,
 
         transit,
         operatedBy: f.operatedBy,
@@ -569,82 +637,84 @@ export default function FlightParserApp() {
       </button>
 
       {/* Output */}
-      {rows.length > 0 && (
-        <div className="bg-image p-[2rem] bg-[#ffffff] text-[#000000]">
-          <div className="absolute bottom-[2rem] right-[2rem]">
-            <Image
-              src={saudia_image}
-              alt="Saudi Tourism Authority Logo"
-              width={100}
-              priority
-            />
-          </div>
-          <div className="text-center font-semibold">
-            <div className="bg-[#ffff00] inline-block px-3">
-              {meta.airline} – Total Price:{" "}
-              <strong>
-                {currencySymbol}
-                {formatNumber(totalPrice)}
-              </strong>
+      <div contentEditable suppressContentEditableWarning>
+        {rows.length > 0 && (
+          <div className="bg-image p-[2rem] bg-[#ffffff] text-[#000000]">
+            <div className="absolute bottom-[2rem] right-[2rem]">
+              <Image
+                src={saudia_image}
+                alt="Saudi Tourism Authority Logo"
+                width={100}
+                priority
+              />
             </div>
-            <div className="mb-[1rem]">
-              {fareItems.map((f) => {
-                const price = Number(f.price);
-                const count = Number(f.count);
+            <div className="text-center font-semibold">
+              <div className="bg-[#ffff00] inline-block px-3">
+                {meta.airline} – Total Price:{" "}
+                <strong>
+                  {currencySymbol}
+                  {formatNumber(totalPrice)}
+                </strong>
+              </div>
+              <div className="mb-[1rem]">
+                {fareItems.map((f) => {
+                  const price = Number(f.price);
+                  const count = Number(f.count);
 
-                // HIDE if price OR count is 0 / empty
-                if (!price || !count) return null;
+                  // HIDE if price OR count is 0 / empty
+                  if (!price || !count) return null;
 
-                return (
-                  <div key={f.label} className="flex justify-center">
-                    <span className="bg-[#ffff00]">
-                      {f.label} {currencySymbol}
-                      {formatNumber(price)} × {count} ={" "}
-                      <strong>
-                        {currencySymbol}
-                        {formatNumber(price * count)}
-                      </strong>
-                    </span>
-                  </div>
-                );
-              })}
+                  return (
+                    <div key={f.label} className="flex justify-center">
+                      <span className="bg-[#ffff00]">
+                        {f.label} {currencySymbol}
+                        {formatNumber(price)} × {count} ={" "}
+                        <strong>
+                          {currencySymbol}
+                          {formatNumber(price * count)}
+                        </strong>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <table className="w-full border text-center">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="border p-2">From</th>
-                <th className="border p-2">To</th>
-                <th className="border p-2">Departure</th>
-                <th className="border p-2">Arrival</th>
-                <th className="border p-2">Transit Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i}>
-                  <td className="border p-2">{r.from}</td>
-                  <td className="border p-2">{r.to}</td>
-                  <td className="border p-2">{r.depart}</td>
-                  <td className="border p-2">{r.arrive}</td>
-                  <td className="border p-2">{r.transit}</td>
+            <table className="w-full border text-center">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border p-2">From</th>
+                  <th className="border p-2">To</th>
+                  <th className="border p-2">Departure</th>
+                  <th className="border p-2">Arrival</th>
+                  <th className="border p-2">Transit Time</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i}>
+                    <td className="border p-2">{r.from}</td>
+                    <td className="border p-2">{r.to}</td>
+                    <td className="border p-2">{r.depart}</td>
+                    <td className="border p-2">{r.arrive}</td>
+                    <td className="border p-2">{r.transit}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-          <div className="pt-[1rem] text-md font-bold">
-            <p>
-              <strong>Notes:</strong> {meta.baggage}
-            </p>
-            <p>
-              <strong>Cancellation Policy:</strong>{" "}
-              <span className="text-[#ff0000]">{meta.cancellation}</span>
-            </p>
+            <div className="pt-[1rem] text-md font-bold">
+              <p>
+                <strong>Notes:</strong> {meta.baggage}
+              </p>
+              <p>
+                <strong>Cancellation Policy:</strong>{" "}
+                <span className="text-[#ff0000]">{meta.cancellation}</span>
+              </p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
